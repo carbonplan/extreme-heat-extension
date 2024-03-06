@@ -8,27 +8,28 @@ import sparse
 from shapely.geometry import Polygon
 import fsspec
 import dask
+from matplotlib import cm
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import cartopy.crs as ccrs
+import cartopy
 
 gcm_list = [
     "ACCESS-CM2",
     "ACCESS-ESM1-5",
     "BCC-CSM2-MR",
     "CanESM5",
-    "CMCC-CM2-SR5",
     "CMCC-ESM2",
     "CNRM-CM6-1",
     "CNRM-ESM2-1",
     "EC-Earth3-Veg-LR",
     "EC-Earth3",
     "FGOALS-g3",
-    "GFDL-CM4",
     "GFDL-ESM4",
     "GISS-E2-1-G",
-    "HadGEM3-GC31-LL",
     "INM-CM4-8",
     "INM-CM5-0",
     "KACE-1-0-G",
-    "KIOST-ESM",
     "MIROC-ES2L",
     "MPI-ESM1-2-HR",
     "MPI-ESM1-2-LR",
@@ -285,6 +286,23 @@ def calc_sparse_weights(
     return weights_sparse
 
 
+def load_regions(extension=False):
+    """
+    Load in the city and regions that to use for aggregation.
+    """
+    path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
+    with fsspec.open(path) as file:
+        regions_df = gpd.read_file(file)
+
+    regions_df.crs = "epsg:4326"
+    # use an area-preserving projection
+    crs_area = "ESRI:53034"
+    regions_df = regions_df.to_crs(crs_area)
+    if extension:
+        extension_cities = pd.read_csv('/home/orianac/extreme-heat-draft/notebooks/SE_Europe_city_selection.csv')
+        regions_df = regions_df[regions_df['ID_HDC_G0'].isin(extension_cities['ID_HDC_G0'].values)]
+    return regions_df
+
 def remove_360_longitudes(ds):
     """
     Rename coordinates so that indices span -180 to 180 instead of 0 to 360.
@@ -299,19 +317,13 @@ def remove_360_longitudes(ds):
 def prep_sparse(
     sample_ds,
     population,
+    regions_df,
     return_population=False,
     variables_to_drop=["rsds", "sfcWind"],
 ):
     """
     Prepare the inputs for the sparse matrix derivation.
     """
-    path = (
-        "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/"
-        "all_regions_and_cities.json"
-    )
-    with fsspec.open(path) as file:
-        regions_df = gpd.read_file(file)
-
     regions_df.crs = "epsg:4326"
 
     tuple(regions_df.total_bounds)
@@ -319,7 +331,8 @@ def prep_sparse(
     # use an area preserving projections
     crs_area = "ESRI:53034"
     regions_df = regions_df.to_crs(crs_area)
-    population = population.rename({"x": "lon", "y": "lat"}).drop("spatial_ref")
+    if "x" in population.coords:
+        population = population.rename({"x": "lon", "y": "lat"}).drop("spatial_ref")
 
     sample_ds = remove_360_longitudes(sample_ds)
     population = population.reindex({"lon": sample_ds.lon.values}).load()
@@ -380,8 +393,8 @@ def clean_up_times(ds):
         ).drop_sel(
             {
                 "time": pd.date_range(
-                    "2060-01-01" + noon_indexed_suffix,
-                    "2060-12-31" + noon_indexed_suffix,
+                    "2080-01-01" + noon_indexed_suffix,
+                    "2080-12-31" + noon_indexed_suffix,
                 )
             }
         )
@@ -396,8 +409,8 @@ def clean_up_times(ds):
         ).drop_sel(
             {
                 "time": pd.date_range(
-                    "2060-01-01" + midnight_indexed_suffix,
-                    "2060-12-31" + midnight_indexed_suffix,
+                    "2080-01-01" + midnight_indexed_suffix,
+                    "2080-12-31" + midnight_indexed_suffix,
                 )
             }
         )
@@ -411,7 +424,7 @@ def summarize(da, metric):
     of days over a set of thresholds. Default thresholds selected from
     Liljegren (2008).
     """
-    celcius_thresholds = [29, 30.5, 32, 35]
+    celcius_thresholds = [25, 27, 29, 30.5, 32, 35, 37]
     annual_max = da.groupby("time.year").max()
     results = xr.Dataset({"annual_maximum": annual_max})
     for threshold in celcius_thresholds:
@@ -419,49 +432,68 @@ def summarize(da, metric):
             da, threshold
         )
         results[f"days_exceeding_{threshold}degC"].attrs["units"] = "ndays"
-
+        results[f"holiday_days_exceeding_{threshold}degC"] = calc_days_over_threshold(
+            da, threshold, holiday=True
+        )
+        results[f"holiday_days_exceeding_{threshold}degC"].attrs["units"] = "ndays"
+    # for threshold in celcius_thresholds:
+        
     return results
 
 
-def calc_days_over_threshold(da, threshold):
+def calc_days_over_threshold(da, threshold, holiday=False):
     """
     Given a threshold calculate the days per year over that threshold
     """
+    if holiday:
+        da = da.sel(time=da['time.month'].isin([7,8]))
+
     return (da > threshold).groupby("time.year").sum()
 
 
-def load_modelled_results(metric, gcm):
+def load_modelled_results(metric, gcm, scenario):
     if metric == "wbgt-sun":
         store_string = (
             f"s3://carbonplan-scratch/extreme-heat/wbgt-sun-regions/"
-            f"wbgt-sun-{gcm}.zarr"
+            f"wbgt-sun-{gcm}-{scenario}.zarr"
         )
         return xr.open_zarr(store_string)
     elif metric == "wbgt-shade":
         store_string_list = [
             f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
-            f"{gcm}-{scenario}-bc.zarr"
-            for scenario in ["historical", "ssp245-2030", "ssp245-2050"]
+            f"{gcm}-historical-bc.zarr"]+\
+        [f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
+            f"{gcm}-{scenario}-{timeframe}-bc.zarr"
+            for timeframe in ["2030", "2050", "2070"]
         ]
         return xr.concat(
             [xr.open_zarr(store) for store in store_string_list], dim="time"
         )
 
 
-def load_multimodel_results(gcms, metric):
+def load_multimodel_results(gcms, scenarios, metric):
     """
     Read in the annualized results from different GCMs into a single dataset.
     """
-    ds_gcm_list = []
-    first = True
-    for gcm in gcms:
-        ds = load_modelled_results(metric, gcm)
-        if not first:
-            ds["time"] = ds_gcm_list[0].time.values
-        ds_gcm_list.append(ds)
-        first = False
 
-    full_ds = xr.concat(ds_gcm_list, dim="gcm")
-    full_ds = full_ds.assign_coords({"gcm": gcms})
-    full_ds.time.attrs["standard_name"] = "time"
+    ds_scenario_list = []
+    first_scenario = True
+    for scenario in scenarios:
+        ds_gcm_list = []
+        first_gcm = True
+        for gcm in gcms:
+            ds = load_modelled_results(metric, gcm, scenario)
+            if not first_gcm:
+                ds["time"] = ds_gcm_list[0].time.values
+            ds_gcm_list.append(ds)
+            first_gcm = False
+        multi_gcm_ds = xr.concat(ds_gcm_list, dim="gcm")
+        print(multi_gcm_ds)
+        multi_gcm_ds = multi_gcm_ds.assign_coords({"gcm": gcms})
+        multi_gcm_ds.time.attrs["standard_name"] = "time"
+        ds_scenario_list.append(multi_gcm_ds)
+        first_scenario=False
+    full_ds = xr.concat(ds_scenario_list, dim="scenario")
+    full_ds = full_ds.assign_coords({"scenario": scenarios})
+
     return full_ds
