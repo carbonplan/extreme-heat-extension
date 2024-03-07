@@ -9,17 +9,7 @@
 
 ## context
 
-This repository contains code to estimate wet-bulb globe temperatures (WBGT) in the shade and in the sun through 2060, developed as part of a [collaborative project with _The Washington Post_](https://www.washingtonpost.com/climate-environment/interactive/2023/extreme-heat-wet-bulb-globe-temperature). We wrote an [explainer article](https://carbonplan.org/research/extreme-heat-explainer) that describes our methods and the resulting dataset, as well as a [blog post](https://carbonplan.org/blog/open-risk-data) on the importance of public access and transparency in climate data and services. To support reproducibility and further research, the code here is sufficient to run the entire analysis. The [notebooks folder](/notebooks) contains 10 Jupyter notebooks that, in sequence, show how we created our dataset, including the inputs and algorithms we used and all the assumptions that we made.
-
-## data
-
-The final output dataset includes historical and future estimates of WBGT in the shade and in the sun for ~15,300 cities and ~24,000 climatically-similar regions around the world. The full analysis includes 26 global climate models (GCMs) and one emissions scenario (SSP2-4.5). To support different use cases, we've made the results available at a few different levels of granularity and in two different formats. The available data is summarized below in order of increasing detail and size. For each row, click on the `List` to see a full list of files and their associated URLs.
-
-| Data                                            | Format | Files                                   | Uses                                                     |
-| ----------------------------------------------- | ------ | --------------------------------------- | -------------------------------------------------------- |
-| Medians over time and medians over GCMs         | CSV    | [List](/data/csv_locations.md)          | Common summary statistics of extreme heat                |
-| Medians over time for the full ensemble of GCMs | Zarr   | [List](/data/zarr_summary_locations.md) | Inspecting variability of summary statistics across GCMs |
-| Daily projections for the full ensemble of GCMs | Zarr   | [List](/data/zarr_daily_locations.md)   | Inspecting full daily time series across GCMs            |
+This repository contains code to estimate wet-bulb globe temperatures (WBGT) in the shade and in the sun through the late 21st century. It is heavily based upon work located in [this repo](https://github.com/carbonplan/extreme-heat). The codebase here includes an extension of the time periods and scenarios to create an expanded set of projections for locations in Southeastern Europe. To support reproducibility and further research, the code here is sufficient to run the entire analysis. The [notebooks folder](/notebooks) contains 10 Jupyter notebooks that, in sequence, show how we created our dataset, including the inputs and algorithms we used and all the assumptions that we made.
 
 ## about us
 
