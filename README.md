@@ -5,7 +5,7 @@
 </picture>
 </p>
 
-# carbonplan / extreme heat
+# carbonplan / extreme heat extension
 
 ## context
 

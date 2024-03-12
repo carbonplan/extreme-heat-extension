@@ -8,11 +8,6 @@ import sparse
 from shapely.geometry import Polygon
 import fsspec
 import dask
-from matplotlib import cm
-import matplotlib.pyplot as plt
-import geopandas as gpd
-import cartopy.crs as ccrs
-import cartopy
 
 gcm_list = [
     "ACCESS-CM2",
@@ -299,9 +294,14 @@ def load_regions(extension=False):
     crs_area = "ESRI:53034"
     regions_df = regions_df.to_crs(crs_area)
     if extension:
-        extension_cities = pd.read_csv('/home/orianac/extreme-heat-draft/notebooks/SE_Europe_city_selection.csv')
-        regions_df = regions_df[regions_df['ID_HDC_G0'].isin(extension_cities['ID_HDC_G0'].values)]
+        extension_cities = pd.read_csv(
+            "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/SE_Europe_city_selection.csv"
+        )
+        regions_df = regions_df[
+            regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
+        ]
     return regions_df
+
 
 def remove_360_longitudes(ds):
     """
@@ -437,7 +437,7 @@ def summarize(da, metric):
         )
         results[f"holiday_days_exceeding_{threshold}degC"].attrs["units"] = "ndays"
     # for threshold in celcius_thresholds:
-        
+
     return results
 
 
@@ -446,7 +446,7 @@ def calc_days_over_threshold(da, threshold, holiday=False):
     Given a threshold calculate the days per year over that threshold
     """
     if holiday:
-        da = da.sel(time=da['time.month'].isin([7,8]))
+        da = da.sel(time=da["time.month"].isin([7, 8]))
 
     return (da > threshold).groupby("time.year").sum()
 
@@ -461,8 +461,9 @@ def load_modelled_results(metric, gcm, scenario):
     elif metric == "wbgt-shade":
         store_string_list = [
             f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
-            f"{gcm}-historical-bc.zarr"]+\
-        [f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
+            f"{gcm}-historical-bc.zarr"
+        ] + [
+            f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
             f"{gcm}-{scenario}-{timeframe}-bc.zarr"
             for timeframe in ["2030", "2050", "2070"]
         ]
@@ -477,7 +478,6 @@ def load_multimodel_results(gcms, scenarios, metric):
     """
 
     ds_scenario_list = []
-    first_scenario = True
     for scenario in scenarios:
         ds_gcm_list = []
         first_gcm = True
@@ -492,7 +492,6 @@ def load_multimodel_results(gcms, scenarios, metric):
         multi_gcm_ds = multi_gcm_ds.assign_coords({"gcm": gcms})
         multi_gcm_ds.time.attrs["standard_name"] = "time"
         ds_scenario_list.append(multi_gcm_ds)
-        first_scenario=False
     full_ds = xr.concat(ds_scenario_list, dim="scenario")
     full_ds = full_ds.assign_coords({"scenario": scenarios})
 
