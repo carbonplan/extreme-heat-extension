@@ -280,8 +280,9 @@ def calc_sparse_weights(
     weights_sparse = ds_weights.unstack(sparse=True, fill_value=0.0).weights
     return weights_sparse
 
+from typing import Optional, Literal
 
-def load_regions(extension=False):
+def load_regions(extension: Literal['all', 'se-europe', 'central-asia'] = 'all'):
     """
     Load in the city and regions that to use for aggregation.
     """
@@ -293,14 +294,32 @@ def load_regions(extension=False):
     # use an area-preserving projection
     crs_area = "ESRI:53034"
     regions_df = regions_df.to_crs(crs_area)
-    if extension:
+
+    if extension == 'all': # should this be 'in'
+        return regions_df
+    elif extension == 'central-asia':
+        extension_cities = pd.read_csv(
+            "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/<_______TODO_____ADD_PATH_TO_CENTRAL_ASIAN_CITIES_______>.csv"
+        )
+        regions_df = regions_df[
+            regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
+        ]         
+        return regions_df
+    elif extension == 'se-europe':
         extension_cities = pd.read_csv(
             "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/SE_Europe_city_selection.csv"
         )
         regions_df = regions_df[
             regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
         ]
-    return regions_df
+    
+        return regions_df
+    else:
+        raise ValueError(f"extension: {extension} not in ['all', 'se-europe', 'central-asia']")
+    
+    
+
+
 
 
 def remove_360_longitudes(ds):
