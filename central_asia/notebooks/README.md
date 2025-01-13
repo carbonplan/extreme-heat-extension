@@ -1,4 +1,1 @@
 ## Central Asia
-
-
-
