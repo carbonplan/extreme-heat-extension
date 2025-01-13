@@ -6,8 +6,8 @@ import numpy as np
 import geopandas as gpd
 import sparse
 from shapely.geometry import Polygon
-import fsspec
 import dask
+from typing import Literal
 
 gcm_list = [
     "ACCESS-CM2",
@@ -92,7 +92,6 @@ def find_nasanex_filename(gcm, scenario):
     return ensemble_member, grid_code
 
 
-##
 def load_nasanex(scenario, gcm, variables, years, chunk_dict=None):
     """
     Read in NEX-GDDP-CMIP6 data from S3.
@@ -281,26 +280,42 @@ def calc_sparse_weights(
     return weights_sparse
 
 
-def load_regions(extension=False):
+def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all"):
     """
     Load in the city and regions that to use for aggregation.
     """
-    path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
-    with fsspec.open(path) as file:
-        regions_df = gpd.read_file(file)
+    # updated to geoparquet
+    path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.parquet"
+    regions_df = gpd.read_parquet(path)
 
     regions_df.crs = "epsg:4326"
     # use an area-preserving projection
     crs_area = "ESRI:53034"
     regions_df = regions_df.to_crs(crs_area)
-    if extension:
+
+    if extension == "all":  # should this be 'in'
+        return regions_df
+    elif extension == "central-asia":
+        extension_cities = pd.read_csv(
+            "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/C_Asia_city_selection.csv"
+        )
+        regions_df = regions_df[
+            regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
+        ]
+        return regions_df
+    elif extension == "se-europe":
         extension_cities = pd.read_csv(
             "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/SE_Europe_city_selection.csv"
         )
         regions_df = regions_df[
             regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
         ]
-    return regions_df
+
+        return regions_df
+    else:
+        raise ValueError(
+            f"extension: {extension} not in ['all', 'se-europe', 'central-asia']"
+        )
 
 
 def remove_360_longitudes(ds):
@@ -496,3 +511,16 @@ def load_multimodel_results(gcms, scenarios, metric):
     full_ds = full_ds.assign_coords({"scenario": scenarios})
 
     return full_ds
+
+
+def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
+    """Uses the Kerchunk nasa-nex reference"""
+    import pandas as pd
+
+    cat_df = pd.read_csv(
+        "s3://carbonplan-share/nasa-nex-reference/reference_catalog_nested.csv"
+    )
+    gcm_scenario_str = f"{gcm}/{scenario}"
+
+    reference_url = cat_df[cat_df["ID"].str.match(gcm_scenario_str)]["url"].iloc[0]
+    return xr.open_dataset(reference_url, chunks={}, engine="kerchunk")
