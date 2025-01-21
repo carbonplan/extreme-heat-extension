@@ -207,8 +207,7 @@ def ds_to_grid(ds, variables_to_drop):
             )
         }
     )
-    return grid.reset_coords().load()
-
+    return grid.reset_coords()#.load()
 
 def calc_sparse_weights(
     ds,
@@ -289,11 +288,11 @@ def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all")
     regions_df = gpd.read_parquet(path)
 
     regions_df.crs = "epsg:4326"
-    # use an area-preserving projection
-    crs_area = "ESRI:53034"
-    regions_df = regions_df.to_crs(crs_area)
+    # # use an area-preserving projection
+    # crs_area = "ESRI:53034"
+    # regions_df = regions_df.to_crs(crs_area)
 
-    if extension == "all":  # should this be 'in'
+    if extension == "all": 
         return regions_df
     elif extension == "central-asia":
         extension_cities = pd.read_csv(
@@ -327,7 +326,6 @@ def remove_360_longitudes(ds):
     new_lons = ds["lon"].where(ds["lon"] < 180, ds["lon"] - 360)
     ds = ds.assign_coords(lon=new_lons)
     return ds
-
 
 def prep_sparse(
     sample_ds,
@@ -389,7 +387,6 @@ def spatial_aggregation(ds, weights_sparse, load=True):
             regridded.load()
     return regridded
 
-
 def clean_up_times(ds):
     """
     Make calendars conform, dropping five years for which we don't have
@@ -405,14 +402,15 @@ def clean_up_times(ds):
                     "2019-12-31" + noon_indexed_suffix,
                 )
             }
-        ).drop_sel(
-            {
-                "time": pd.date_range(
-                    "2080-01-01" + noon_indexed_suffix,
-                    "2080-12-31" + noon_indexed_suffix,
-                )
-            }
         )
+        # ).drop_sel(
+        #     {
+        #         "time": pd.date_range(
+        #             "2080-01-01" + noon_indexed_suffix,
+        #             "2080-12-31" + noon_indexed_suffix,
+        #         )
+        #     }
+    
     except Exception:
         ds = ds.drop_sel(
             {
@@ -421,14 +419,15 @@ def clean_up_times(ds):
                     "2019-12-31" + midnight_indexed_suffix,
                 )
             }
-        ).drop_sel(
-            {
-                "time": pd.date_range(
-                    "2080-01-01" + midnight_indexed_suffix,
-                    "2080-12-31" + midnight_indexed_suffix,
-                )
-            }
         )
+        # ).drop_sel(
+        #     {
+        #         "time": pd.date_range(
+        #             "2080-01-01" + midnight_indexed_suffix,
+        #             "2080-12-31" + midnight_indexed_suffix,
+        #         )
+        #     }
+        # )
     return ds
 
 
@@ -516,7 +515,7 @@ def load_multimodel_results(gcms, scenarios, metric):
 def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
     """Uses the Kerchunk nasa-nex reference"""
     import pandas as pd
-
+    import xarray as xr
     cat_df = pd.read_csv(
         "s3://carbonplan-share/nasa-nex-reference/reference_catalog_nested.csv"
     )
@@ -524,3 +523,4 @@ def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
 
     reference_url = cat_df[cat_df["ID"].str.match(gcm_scenario_str)]["url"].iloc[0]
     return xr.open_dataset(reference_url, chunks={}, engine="kerchunk")
+    # return xr.open_dataset(reference_url, engine="kerchunk")
