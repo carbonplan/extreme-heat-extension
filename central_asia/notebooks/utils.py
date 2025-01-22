@@ -207,7 +207,8 @@ def ds_to_grid(ds, variables_to_drop):
             )
         }
     )
-    return grid.reset_coords()#.load()
+    return grid.reset_coords()  # .load()
+
 
 def calc_sparse_weights(
     ds,
@@ -292,7 +293,7 @@ def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all")
     # crs_area = "ESRI:53034"
     # regions_df = regions_df.to_crs(crs_area)
 
-    if extension == "all": 
+    if extension == "all":
         return regions_df
     elif extension == "central-asia":
         extension_cities = pd.read_csv(
@@ -326,6 +327,7 @@ def remove_360_longitudes(ds):
     new_lons = ds["lon"].where(ds["lon"] < 180, ds["lon"] - 360)
     ds = ds.assign_coords(lon=new_lons)
     return ds
+
 
 def prep_sparse(
     sample_ds,
@@ -387,6 +389,7 @@ def spatial_aggregation(ds, weights_sparse, load=True):
             regridded.load()
     return regridded
 
+
 def clean_up_times(ds):
     """
     Make calendars conform, dropping five years for which we don't have
@@ -410,7 +413,7 @@ def clean_up_times(ds):
         #             "2080-12-31" + noon_indexed_suffix,
         #         )
         #     }
-    
+
     except Exception:
         ds = ds.drop_sel(
             {
@@ -479,7 +482,7 @@ def load_modelled_results(metric, gcm, scenario):
         ] + [
             f"s3://carbonplan-scratch/extreme-heat/wbgt-shade-regions/"
             f"{gcm}-{scenario}-{timeframe}-bc.zarr"
-            for timeframe in ["2030", "2050", "2070"]
+            for timeframe in ["2030", "2050", "2070", "2080", "2090"]
         ]
         return xr.concat(
             [xr.open_zarr(store) for store in store_string_list], dim="time"
@@ -490,19 +493,21 @@ def load_multimodel_results(gcms, scenarios, metric):
     """
     Read in the annualized results from different GCMs into a single dataset.
     """
+    ####################
+    """ WARNING SUBSET GCMS!!!!!!"""
+    ####################
 
     ds_scenario_list = []
     for scenario in scenarios:
         ds_gcm_list = []
         first_gcm = True
-        for gcm in gcms:
+        for gcm in gcms[0:1]:
             ds = load_modelled_results(metric, gcm, scenario)
             if not first_gcm:
                 ds["time"] = ds_gcm_list[0].time.values
             ds_gcm_list.append(ds)
             first_gcm = False
         multi_gcm_ds = xr.concat(ds_gcm_list, dim="gcm")
-        print(multi_gcm_ds)
         multi_gcm_ds = multi_gcm_ds.assign_coords({"gcm": gcms})
         multi_gcm_ds.time.attrs["standard_name"] = "time"
         ds_scenario_list.append(multi_gcm_ds)
@@ -516,6 +521,7 @@ def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
     """Uses the Kerchunk nasa-nex reference"""
     import pandas as pd
     import xarray as xr
+
     cat_df = pd.read_csv(
         "s3://carbonplan-share/nasa-nex-reference/reference_catalog_nested.csv"
     )
