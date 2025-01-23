@@ -284,11 +284,18 @@ def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all")
     """
     Load in the city and regions that to use for aggregation.
     """
-    # updated to geoparquet
-    path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.parquet"
-    regions_df = gpd.read_parquet(path)
+    import fsspec
+
+    path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
+    with fsspec.open(path) as file:
+        regions_df = gpd.read_file(file)
 
     regions_df.crs = "epsg:4326"
+
+    # updated to geoparquet
+    # path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.parquet"
+    # regions_df = gpd.read_parquet(path)
+
     # # use an area-preserving projection
     # crs_area = "ESRI:53034"
     # regions_df = regions_df.to_crs(crs_area)
@@ -525,5 +532,5 @@ def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
     gcm_scenario_str = f"{gcm}/{scenario}"
 
     reference_url = cat_df[cat_df["ID"].str.match(gcm_scenario_str)]["url"].iloc[0]
-    return xr.open_dataset(reference_url, chunks={}, engine="kerchunk")
-    # return xr.open_dataset(reference_url, engine="kerchunk")
+    # return xr.open_dataset(reference_url, chunks={}, engine="kerchunk")
+    return xr.open_dataset(reference_url, engine="kerchunk")
