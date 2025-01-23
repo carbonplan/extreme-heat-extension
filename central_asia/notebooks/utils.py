@@ -493,9 +493,6 @@ def load_multimodel_results(gcms, scenarios, metric):
     """
     Read in the annualized results from different GCMs into a single dataset.
     """
-    ####################
-    """ WARNING SUBSET GCMS!!!!!!"""
-    ####################
 
     ds_scenario_list = []
     for scenario in scenarios:
