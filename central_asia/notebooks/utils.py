@@ -3,9 +3,6 @@ import pandas as pd
 import s3fs
 import xarray as xr
 import numpy as np
-import geopandas as gpd
-import sparse
-from shapely.geometry import Polygon
 import dask
 from typing import Literal
 
@@ -53,23 +50,25 @@ gcms_with_nonstandard_calendars_list = [
     "UKESM1-0-LL",
 ]
 
-## loading
-df = pd.read_csv(
-    "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
-)
-nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
-    [0, 1, 2, 3], axis=1
-)
-nasa_nex_runs_df.columns = [
-    "GCM",
-    "scenario",
-    "ensemble_member",
-    "variable",
-    "file_name",
-]
 
 
 def find_nasanex_filename(gcm, scenario):
+    ## loading
+    df = pd.read_csv(
+        "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
+    )
+    nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
+        [0, 1, 2, 3], axis=1
+    )
+    nasa_nex_runs_df.columns = [
+        "GCM",
+        "scenario",
+        "ensemble_member",
+        "variable",
+        "file_name",
+    ]
+
+
     """
     Load list of NASA-NEX files downloaded from their docs. We will use it to create
     the catalog of available datasets. Largely this is used to filter out the GCMs
@@ -113,7 +112,7 @@ def load_nasanex(scenario, gcm, variables, years, chunk_dict=None):
         if i == 0:
             ds[var] = xr.open_mfdataset(file_objs[var], engine="h5netcdf")[var]
         else:
-            new_var = xr.open_mfdataset(file_objs[var], engine="h5netcdf")
+            new_var = xr.open_mfdataset(file_objs[var], engine="h5netcdf") # add join = 'override'
             new_var["time"] = ds[variables[0]]["time"].values
             ds[var] = new_var[var]
     if chunk_dict is not None:
@@ -137,6 +136,8 @@ def apply_weights_matmul_sparse(weights, data):
     Create sparse matrix of weights that collapses gridded data over a
     region into a weighted average point estimate.
     """
+    import sparse
+
     assert isinstance(weights, sparse.SparseArray)
     assert isinstance(data, np.ndarray)
     data = sparse.COO.from_numpy(data)
@@ -157,6 +158,8 @@ def bounds_to_poly(lon_bounds, lat_bounds):
     """
     Create polygon encompassing the bounds of the analysis domain.
     """
+    from shapely.geometry import Polygon
+
     if lon_bounds[0] >= 180:
         # geopandas needs this
         lon_bounds = lon_bounds - 360
@@ -218,10 +221,15 @@ def calc_sparse_weights(
     population_weight=None,
     crs_orig="EPSG:4326",
 ):
+    import geopandas as gpd
+    import sparse
+
+
     """
     Calculate weights as sparse matrix.
     """
     print("Generating weights...")
+    
     grid = ds_to_grid(ds, variables_to_drop)
     points = grid.stack(point=("lat", "lon"))
     boxes = xr.apply_ufunc(
@@ -285,6 +293,7 @@ def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all")
     Load in the city and regions that to use for aggregation.
     """
     import fsspec
+    import geopandas as gpd
 
     path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
     with fsspec.open(path) as file:
