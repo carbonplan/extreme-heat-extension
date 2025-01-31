@@ -292,26 +292,42 @@ def calc_sparse_weights(
     return weights_sparse
 
 
-def load_regions(extension=False):
+def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all"):
     """
     Load in the city and regions that to use for aggregation.
     """
+    import fsspec
+    import geopandas as gpd
+    
     path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
     with fsspec.open(path) as file:
         regions_df = gpd.read_file(file)
 
     regions_df.crs = "epsg:4326"
-    # use an area-preserving projection
-    crs_area = "ESRI:53034"
-    regions_df = regions_df.to_crs(crs_area)
-    if extension:
+    
+    if extension == "all":
+        return regions_df
+    elif extension == "central-asia":
+        extension_cities = pd.read_csv(
+            "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/C_Asia_city_selection.csv"
+        )
+        regions_df = regions_df[
+            regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
+        ]
+        return regions_df
+    elif extension == "se-europe":
         extension_cities = pd.read_csv(
             "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/SE_Europe_city_selection.csv"
         )
         regions_df = regions_df[
             regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
         ]
-    return regions_df
+
+        return regions_df
+    else:
+        raise ValueError(
+            f"extension: {extension} not in ['all', 'se-europe', 'central-asia']"
+        )
 
 
 def remove_360_longitudes(ds):
