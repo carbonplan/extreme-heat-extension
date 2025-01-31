@@ -53,21 +53,6 @@ gcms_with_nonstandard_calendars_list = [
     "UKESM1-0-LL",
 ]
 
-## loading
-df = pd.read_csv(
-    "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
-)
-nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
-    [0, 1, 2, 3], axis=1
-)
-nasa_nex_runs_df.columns = [
-    "GCM",
-    "scenario",
-    "ensemble_member",
-    "variable",
-    "file_name",
-]
-
 
 def find_nasanex_filename(gcm, scenario):
     """
@@ -75,6 +60,20 @@ def find_nasanex_filename(gcm, scenario):
     the catalog of available datasets. Largely this is used to filter out the GCMs
     that don't have tasmax available.
     """
+    ## loading
+    df = pd.read_csv(
+        "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
+    )
+    nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
+        [0, 1, 2, 3], axis=1
+    )
+    nasa_nex_runs_df.columns = [
+        "GCM",
+        "scenario",
+        "ensemble_member",
+        "variable",
+        "file_name",
+    ]
     template_filename = nasa_nex_runs_df[
         (nasa_nex_runs_df["GCM"] == gcm)
         & (nasa_nex_runs_df["scenario"] == scenario)
@@ -121,6 +120,18 @@ def load_nasanex(scenario, gcm, variables, years, chunk_dict=None):
         ds = ds.chunk(chunk_dict)
     return ds
 
+def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
+    """Uses the Kerchunk nasa-nex reference"""
+    import pandas as pd
+    import xarray as xr
+
+    cat_df = pd.read_csv(
+        "s3://carbonplan-share/nasa-nex-reference/reference_catalog_nested.csv"
+    )
+    gcm_scenario_str = f"{gcm}/{scenario}"
+
+    reference_url = cat_df[cat_df["ID"].str.match(gcm_scenario_str)]["url"].iloc[0]
+    return xr.open_dataset(reference_url, engine="kerchunk")
 
 ## calc wbgt
 def wbgt(wbt, bgt, tas):
