@@ -420,8 +420,8 @@ def clean_up_times(ds):
         ).drop_sel(
             {
                 "time": pd.date_range(
-                    "2080-01-01" + noon_indexed_suffix,
-                    "2080-12-31" + noon_indexed_suffix,
+                    "2060-01-01" + noon_indexed_suffix,
+                    "2079-12-31" + noon_indexed_suffix,
                 )
             }
         )
@@ -441,6 +441,28 @@ def clean_up_times(ds):
                 )
             }
         )
+    try:
+        ds = ds.drop_sel(
+            {
+                "time": pd.date_range(
+                    "1950-01-01" + noon_indexed_suffix,
+                    "1984-12-31" + noon_indexed_suffix,
+                )
+            }
+        )
+    except:
+        pass
+    try:
+        ds = ds.drop_sel(
+            {
+                "time": pd.date_range(
+                    "2100-01-01" + noon_indexed_suffix,
+                    "2100-12-31" + noon_indexed_suffix,
+                )
+            }
+        )
+    except:
+        pass
     return ds
 
 
