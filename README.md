@@ -9,7 +9,7 @@
 
 ## context
 
-This repository contains code to estimate wet-bulb globe temperatures (WBGT) in the shade and in the sun through the late 21st century. It is heavily based upon work located in [this repo](https://github.com/carbonplan/extreme-heat). The codebase here includes an extension of the time periods and scenarios to create an expanded set of projections for locations in Southeastern Europe. To support reproducibility and further research, the code here is sufficient to run the entire analysis. The [notebooks folder](/notebooks) contains 10 Jupyter notebooks that, in sequence, show how we created our dataset, including the inputs and algorithms we used and all the assumptions that we made.
+This repository contains code to estimate wet-bulb globe temperatures (WBGT) in the shade and in the sun through the late 21st century. It is heavily based upon work located in [this repo](https://github.com/carbonplan/extreme-heat). The codebase here includes an extension of the time periods and scenarios to create an expanded set of projections for locations in Southeastern Europe and Central Asia. To support reproducibility and further research, the code here is sufficient to run the entire analysis. The [Southeastern Europe](/southeastern-europe/notebooks/) and [Central Asia](/central-asia/notebooks/) notebook folders each contain 10 Jupyter notebooks that, in sequence, show how we created our dataset, including the inputs and algorithms we used and all the assumptions that we made.
 
 ## about us
 

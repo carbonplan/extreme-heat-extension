@@ -53,21 +53,6 @@ gcms_with_nonstandard_calendars_list = [
     "UKESM1-0-LL",
 ]
 
-## loading
-df = pd.read_csv(
-    "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
-)
-nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
-    [0, 1, 2, 3], axis=1
-)
-nasa_nex_runs_df.columns = [
-    "GCM",
-    "scenario",
-    "ensemble_member",
-    "variable",
-    "file_name",
-]
-
 
 def find_nasanex_filename(gcm, scenario):
     """
@@ -75,6 +60,20 @@ def find_nasanex_filename(gcm, scenario):
     the catalog of available datasets. Largely this is used to filter out the GCMs
     that don't have tasmax available.
     """
+    ## loading
+    df = pd.read_csv(
+        "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/nex-gddp-cmip6-files.csv"
+    )
+    nasa_nex_runs_df = pd.DataFrame([run.split("/") for run in df[" fileURL"].values]).drop(
+        [0, 1, 2, 3], axis=1
+    )
+    nasa_nex_runs_df.columns = [
+        "GCM",
+        "scenario",
+        "ensemble_member",
+        "variable",
+        "file_name",
+    ]
     template_filename = nasa_nex_runs_df[
         (nasa_nex_runs_df["GCM"] == gcm)
         & (nasa_nex_runs_df["scenario"] == scenario)
@@ -121,6 +120,18 @@ def load_nasanex(scenario, gcm, variables, years, chunk_dict=None):
         ds = ds.chunk(chunk_dict)
     return ds
 
+def load_virtual_nasa_nex(gcm: str, scenario: str) -> xr.Dataset:
+    """Uses the Kerchunk nasa-nex reference"""
+    import pandas as pd
+    import xarray as xr
+
+    cat_df = pd.read_csv(
+        "s3://carbonplan-share/nasa-nex-reference/reference_catalog_nested.csv"
+    )
+    gcm_scenario_str = f"{gcm}/{scenario}"
+
+    reference_url = cat_df[cat_df["ID"].str.match(gcm_scenario_str)]["url"].iloc[0]
+    return xr.open_dataset(reference_url, engine="kerchunk")
 
 ## calc wbgt
 def wbgt(wbt, bgt, tas):
@@ -281,26 +292,42 @@ def calc_sparse_weights(
     return weights_sparse
 
 
-def load_regions(extension=False):
+def load_regions(extension: Literal["all", "se-europe", "central-asia"] = "all"):
     """
     Load in the city and regions that to use for aggregation.
     """
+    import fsspec
+    import geopandas as gpd
+    
     path = "s3://carbonplan-climate-impacts/extreme-heat/v1.0/inputs/all_regions_and_cities.json"
     with fsspec.open(path) as file:
         regions_df = gpd.read_file(file)
 
     regions_df.crs = "epsg:4326"
-    # use an area-preserving projection
-    crs_area = "ESRI:53034"
-    regions_df = regions_df.to_crs(crs_area)
-    if extension:
+    
+    if extension == "all":
+        return regions_df
+    elif extension == "central-asia":
+        extension_cities = pd.read_csv(
+            "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/C_Asia_city_selection.csv"
+        )
+        regions_df = regions_df[
+            regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
+        ]
+        return regions_df
+    elif extension == "se-europe":
         extension_cities = pd.read_csv(
             "s3://carbonplan-climate-impacts/extreme-heat-extension/v1.0/inputs/SE_Europe_city_selection.csv"
         )
         regions_df = regions_df[
             regions_df["ID_HDC_G0"].isin(extension_cities["ID_HDC_G0"].values)
         ]
-    return regions_df
+
+        return regions_df
+    else:
+        raise ValueError(
+            f"extension: {extension} not in ['all', 'se-europe', 'central-asia']"
+        )
 
 
 def remove_360_longitudes(ds):
@@ -393,8 +420,8 @@ def clean_up_times(ds):
         ).drop_sel(
             {
                 "time": pd.date_range(
-                    "2080-01-01" + noon_indexed_suffix,
-                    "2080-12-31" + noon_indexed_suffix,
+                    "2060-01-01" + noon_indexed_suffix,
+                    "2079-12-31" + noon_indexed_suffix,
                 )
             }
         )
@@ -414,6 +441,28 @@ def clean_up_times(ds):
                 )
             }
         )
+    try:
+        ds = ds.drop_sel(
+            {
+                "time": pd.date_range(
+                    "1950-01-01" + noon_indexed_suffix,
+                    "1984-12-31" + noon_indexed_suffix,
+                )
+            }
+        )
+    except:
+        pass
+    try:
+        ds = ds.drop_sel(
+            {
+                "time": pd.date_range(
+                    "2100-01-01" + noon_indexed_suffix,
+                    "2100-12-31" + noon_indexed_suffix,
+                )
+            }
+        )
+    except:
+        pass
     return ds
 
 
